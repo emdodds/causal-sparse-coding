@@ -266,7 +266,7 @@ class CausalMP:
         if filename is None:
             filename = self.paramfile
         with open(filename,'wb') as ff:
-            pickle.dump([self.phi, self.params, self.histories], f)
+            pickle.dump([self.phi, self.params, self.histories], ff)
         self.paramfile = filename
         
     def load(self, filename):
