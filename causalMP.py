@@ -99,6 +99,19 @@ class SignalSet:
         signal = self.data[which]
         signal /= np.max(signal) # as in Smith & Lewicki
         return signal
+        
+    def tiled_plot(self, stims):
+        """Tiled plots of the given signals. Zeroth index is which signal.
+        Kind of slow, expect about 10s for 100 plots."""
+        nstim = stims.shape[0]
+        plotrows = int(np.sqrt(nstim))
+        plotcols = int(np.ceil(nstim/plotrows))
+        f, axes = plt.subplots(plotrows, plotcols, sharex=True, sharey=True)
+        for ii in range(nstim):
+            axes.flatten()[ii].plot(stims[ii])
+        f.subplots_adjust(hspace=0, wspace=0)
+        plt.setp([a.get_xticklabels() for a in f.axes[:-1]], visible=False)
+        plt.setp([a.get_yticklabels() for a in f.axes[:-1]], visible=False)
 
 class CausalMP:
     
@@ -239,11 +252,15 @@ class CausalMP:
         return error, act_fraction
     
     def train(self, ntrials=10000):
-        # TODO: add history accounting and other bookkeeping
         for ii in range(ntrials):
             error, act_frac = self.learn_step()
             self.errorhist = np.append(self.errorhist, error)
-            self.actfrachist = np.append(self.actfrachist, act_frac)        
+            self.actfrachist = np.append(self.actfrachist, act_frac)      
+            if ii % 50 == 0:
+                print(ii)
+                
+    def show_dict(self):
+        self.stims.tiled_plot(self.phi)
 
     def save(self, filename=None):
         if filename is None:
