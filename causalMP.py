@@ -49,7 +49,6 @@ def plot_spikegram( spikes, sample_rate, markerSize = .0001 ):
     """adapted from https://github.com/craffel/spikegram-coding/blob/master/plotSpikeGram.py"""
     nkernels = spikes.shape[0]
     indices = np.transpose(np.nonzero(spikes))
-    print(indices.shape)
     scalesKernelsAndOffsets = [(spikes[idx[0],idx[1]], idx[0], idx[1]) for idx in indices]
     
     for scale, kernel, offset in scalesKernelsAndOffsets:
@@ -134,6 +133,9 @@ class CausalMP:
         
         self.errorhist = np.array([])
         self.actfrachist = np.array([])
+        self.L0acts = np.zeros(self.nunits)
+        self.L1acts = np.zeros(self.nunits)
+        self.L2acts = np.zeros(self.nunits)
         self.paramfile= 'causalMP.pickle'
     
     def load_data(self, data):
@@ -237,7 +239,7 @@ class CausalMP:
         plt.title('Reconstruction')
         plt.subplot(3,1,3)
         plot_spikegram(spikes, sample_rate=self.sample_rate, markerSize=1)
-        print('Signal-noise ratio: ', snr(sig, recon))
+        print('Signal-noise ratio: ', snr(sig, recon), " dB")
         
     
     def learn_step(self):
@@ -247,8 +249,13 @@ class CausalMP:
         feed_dict = {self.X : signal, self.final_coeffs : spikes}
         error, _ = self.sess.run((self.loss, self.learn_op), feed_dict = feed_dict)
         self.sess.run(self.normalize)
+        # record and return stats
         nspikes = np.count_nonzero(spikes)
         act_fraction = nspikes/lsignal
+        eta = 0.01
+        self.L0acts = (1-eta)*self.L0acts + eta*np.mean(spikes != 0, axis=1)
+        self.L1acts = (1-eta)*self.L1acts + eta*np.mean(np.abs(spikes), axis=1)
+        self.L2acts = (1-eta)*self.L2acts + eta*np.mean(spikes**2, axis=1)
         return error, act_fraction
     
     def train(self, ntrials=10000):
@@ -264,6 +271,11 @@ class CausalMP:
     def show_dict(self):
         self.stims.tiled_plot(self.phi)
         
+    def show_spectra(self):
+        """Show a tiled plot of the power spectra of the current dictionary."""
+        spectra = np.square(np.abs(np.fft.rfft(self.phi, axis=1)))
+        self.stims.tiled_plot(spectra)
+        
     def progress_plot(self, window_size=1000, norm=1, start=0, end=-1):
         """Plots a moving average of the error and activity history with the
         given averaging window length."""
@@ -272,6 +284,38 @@ class CausalMP:
         smoothedactivity = np.convolve(self.actfrachist[start:end], window, 'valid')
         plt.plot(smoothederror, 'b', label = 'Error')
         plt.plot(smoothedactivity, 'g', label = 'Activity')
+        
+    def pairwise_dots(self):
+        """Compute all the pairwise dot products of the dictionary elements.
+        Plot the resulting matrix."""
+        phi = self.phi
+        corr = phi @ phi.T
+        plt.imshow(corr, cmap='RdBu', interpolation='nearest')
+        plt.colorbar()
+        
+    def fast_sort(self, measure="L0", plot=False, savestr=None):
+        """Sorts RFs in order by moving average usage."""
+        if measure=="L1":
+            usages = self.L1acts
+        else:
+            usages = self.L0acts
+        sorter = np.argsort(usages)
+        self.sort(usages, sorter, plot, savestr)
+        return usages[sorter]
+        
+    def sort(self, usages, sorter, plot, savestr):
+        self.phi = self.phi[sorter]
+        self.L0acts = self.L0acts[sorter]
+        self.L1acts = self.L1acts[sorter]
+        self.L2acts = self.L2acts[sorter]
+        if plot:
+            plt.figure()
+            plt.plot(usages[sorter])
+            plt.title('L0 Usage')
+            plt.xlabel('Dictionary index')
+            plt.ylabel('Fraction of stimuli')
+            if savestr is not None:
+                plt.savefig(savestr,format='png', bbox_inches='tight')
 
     def save(self, filename=None):
         if filename is None:
