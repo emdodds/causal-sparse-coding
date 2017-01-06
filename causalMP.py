@@ -258,9 +258,20 @@ class CausalMP:
             self.actfrachist = np.append(self.actfrachist, act_frac)      
             if ii % 50 == 0:
                 print(ii)
+                if ii % 1000 == 0 and ii != 0:
+                    self.save()
                 
     def show_dict(self):
         self.stims.tiled_plot(self.phi)
+        
+    def progress_plot(self, window_size=1000, norm=1, start=0, end=-1):
+        """Plots a moving average of the error and activity history with the
+        given averaging window length."""
+        window = np.ones(int(window_size))/float(window_size)
+        smoothederror = np.convolve(self.errorhist[start:end], window, 'valid')
+        smoothedactivity = np.convolve(self.actfrachist[start:end], window, 'valid')
+        plt.plot(smoothederror, 'b', label = 'Error')
+        plt.plot(smoothedactivity, 'g', label = 'Activity')
 
     def save(self, filename=None):
         if filename is None:
