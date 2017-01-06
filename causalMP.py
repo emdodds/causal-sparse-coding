@@ -233,7 +233,7 @@ class CausalMP:
         spikes, recon = self.infer(signal)
         feed_dict = {self.X : signal, self.final_coeffs : spikes}
         error, _ = self.sess.run((self.loss, self.learn_op), feed_dict = feed_dict)
-        sess.run(self.normalize)
+        self.sess.run(self.normalize)
         nspikes = np.count_nonzero(spikes)
         act_fraction = nspikes/lsignal
         return error, act_fraction
