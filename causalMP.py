@@ -184,6 +184,9 @@ class CausalMP:
         else:
             return tf.random_normal([self.nunits, self.lfilter])
     
+    
+    # Inference
+    ##########################################################################
     def infer(self, signal):
         if self.tf_inference:
             return self.tf_infer(signal)
@@ -241,7 +244,8 @@ class CausalMP:
         plot_spikegram(spikes, sample_rate=self.sample_rate, markerSize=1)
         print('Signal-noise ratio: ', snr(sig, recon), " dB")
         
-    
+    # Learning
+    ##########################################################################
     def learn_step(self):
         signal = self.stims.rand_stim()
         lsignal = signal.shape[0]
@@ -267,7 +271,10 @@ class CausalMP:
                 print(ii)
                 if ii % 1000 == 0 and ii != 0:
                     self.save()
-                
+          
+          
+    # Visualization
+    ##########################################################################
     def show_dict(self):
         self.stims.tiled_plot(self.phi)
         
@@ -291,8 +298,10 @@ class CausalMP:
         phi = self.phi
         corr = phi @ phi.T
         plt.imshow(corr, cmap='RdBu', interpolation='nearest')
-        plt.colorbar()
+        plt.colorbar()        
         
+    # Sorting
+    ##########################################################################
     def fast_sort(self, measure="L0", plot=False, savestr=None):
         """Sorts RFs in order by moving average usage."""
         if measure=="L1":
@@ -317,6 +326,8 @@ class CausalMP:
             if savestr is not None:
                 plt.savefig(savestr,format='png', bbox_inches='tight')
 
+    # Saving and loading
+    ##########################################################################
     def save(self, filename=None):
         if filename is None:
             filename = self.paramfile
@@ -329,6 +340,8 @@ class CausalMP:
             self.phi, self.params, self.histories = pickle.load(ff)
         self.paramfile = filename
     
+    # Properties for convenient access to groups of parameters and to tf variable values
+    ##########################################################################    
     @property
     def phi(self):
         return self.sess.run(self.filters)
@@ -352,8 +365,8 @@ class CausalMP:
         
     @property
     def histories(self):
-        return (self.errorhist, self.actfrachist)
+        return (self.errorhist, self.actfrachist, self.L0acts, self.L1acts, self.L2acts)
      
     @histories.setter
     def histories(self, histories):
-        self.errorhist, self.actfrachist = histories
+        self.errorhist, self.actfrachist, self.L0acts, self.L1acts, self.L2acts = histories
