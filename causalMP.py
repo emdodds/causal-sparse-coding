@@ -334,7 +334,7 @@ class CausalMP:
         spectra = np.square(np.abs(np.fft.rfft(self.phi, axis=1)))
         centers = np.abs(spectra) @ np.fft.fftfreq(self.lfilter, d=1/self.sample_rate)[:spectra.shape[1]]
         bandwidths = np.std(spectra, axis=1)
-        plt.plot(centers, bandwidth, 'b.')
+        plt.plot(centers, bandwidths, 'b.')
         plt.xlabel('Center frequency (Hz)')
         plt.xscale('log')
         plt.ylabel('Bandwidth (Hz)')
