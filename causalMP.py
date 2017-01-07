@@ -332,8 +332,9 @@ class CausalMP:
         """Each dictionary element determines a point on a plot of that element's
         bandwidth vs its center frequency."""
         spectra = np.square(np.abs(np.fft.rfft(self.phi, axis=1)))
-        centers = np.abs(spectra) @ np.fft.fftfreq(self.lfilter, d=1/self.sample_rate)[:spectra.shape[1]]
-        bandwidths = np.std(spectra, axis=1)
+        freqs = np.fft.fftfreq(self.lfilter, d=1/self.sample_rate)[:spectra.shape[1]]
+        centers = spectra @ freqs / spectra.sum(1)
+        bandwidths = spectra @ freqs**2 - centers**2
         plt.plot(centers, bandwidths, 'b.')
         plt.xlabel('Center frequency (Hz)')
         plt.xscale('log')
