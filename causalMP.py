@@ -353,7 +353,7 @@ class CausalMP:
         Options for measure: L0, L1, f. L0 by default."""
         if measure=="f" or measure=="frequency":
             usages, _ = self.get_cf_and_bandwidth()
-        if measure=="L1":
+        elif measure=="L1":
             usages = self.L1acts
         else:
             usages = self.L0acts
