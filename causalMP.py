@@ -343,7 +343,7 @@ class CausalMP:
         spectra = np.square(np.abs(np.fft.rfft(self.phi, axis=1)))
         freqs = np.fft.fftfreq(self.lfilter, d=1/self.sample_rate)[:spectra.shape[1]]
         centers = spectra @ freqs / spectra.sum(1)
-        bandwidths = np.sqrt(spectra @ freqs**2 - centers**2)
+        bandwidths = np.sqrt(spectra @ freqs**2 / spectra.sum(1) - centers**2)
         return centers, bandwidths
         
     # Sorting
