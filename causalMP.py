@@ -331,20 +331,28 @@ class CausalMP:
     def cf_bandwidth_plot(self):
         """Each dictionary element determines a point on a plot of that element's
         bandwidth vs its center frequency."""
-        spectra = np.square(np.abs(np.fft.rfft(self.phi, axis=1)))
-        freqs = np.fft.fftfreq(self.lfilter, d=1/self.sample_rate)[:spectra.shape[1]]
-        centers = spectra @ freqs / spectra.sum(1)
-        bandwidths = np.sqrt(spectra @ freqs**2 - centers**2)
+        centers, bandwidths = self.get_cf_and_bandwidth()
         plt.plot(centers, bandwidths, 'b.')
         plt.xlabel('Center frequency (Hz)')
         plt.xscale('log')
         plt.ylabel('Bandwidth (Hz)')
         plt.yscale('log')
+        return centers, bandwidths
+        
+    def get_cf_and_bandwidth(self):
+        spectra = np.square(np.abs(np.fft.rfft(self.phi, axis=1)))
+        freqs = np.fft.fftfreq(self.lfilter, d=1/self.sample_rate)[:spectra.shape[1]]
+        centers = spectra @ freqs / spectra.sum(1)
+        bandwidths = np.sqrt(spectra @ freqs**2 - centers**2)
+        return centers, bandwidths
         
     # Sorting
     ##########################################################################
     def fast_sort(self, measure="L0", plot=False, savestr=None):
-        """Sorts RFs in order by moving average usage."""
+        """Sorts filters by moving average usage of specified type, or by center frequency.
+        Options for measure: L0, L1, f. L0 by default."""
+        if measure=="f" or measure=="frequency":
+            usages, _ = self.get_cf_and_bandwidth()
         if measure=="L1":
             usages = self.L1acts
         else:
