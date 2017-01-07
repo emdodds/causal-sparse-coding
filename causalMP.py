@@ -119,14 +119,33 @@ class CausalMP:
                  nunits = 32,
                  filter_time = 0.05,
                  learn_rate = 0.01,
-                 thresh = 1.5,
-                 tf_inference = False):
+                 thresh = 0.5,
+                 max_iter = 1,
+                 tf_inference = False,
+                 paramfile= 'causalMP.pickle'):
+        """
+        Causal Matching Pursuit tries at each time to add the coefficient(s)
+        that most improve(s) the a linear representation of a given signal,
+        using only the portion of the signal before that time.
+
+        Parameters:
+        ---------------------------------------------------------------------
+        nunits : (int) number of filters used
+        filter_time : (float) length of filters in seconds
+        learn_rate : (float) rate used for dictionary learning
+        thresh : (float) coefficients below this number are rejected
+        max_iter : (int) maximum number of coefficients per time point
+        tf_inference : (bool) use tensorflow inference method if True
+        paramfile : (str) filename where parameters, dict, histories are saved
+        """
+        
         
         self.thresh = 0.6
         self.tf_inference = tf_inference
         self.sample_rate = 16000
         self.nunits = 32
         self.lfilter = int(filter_time * self.sample_rate)
+        self.max_iter = max_iter
         
         self.initialize_graph(learn_rate)
         self.stims = self.load_data(data)
@@ -136,7 +155,7 @@ class CausalMP:
         self.L0acts = np.zeros(self.nunits)
         self.L1acts = np.zeros(self.nunits)
         self.L2acts = np.zeros(self.nunits)
-        self.paramfile= 'causalMP.pickle'
+        self.paramfile = paramfile
     
     def load_data(self, data):
         return SignalSet(self.sample_rate, data)
@@ -183,8 +202,7 @@ class CausalMP:
             return gammachirps        
         else:
             return tf.random_normal([self.nunits, self.lfilter])
-    
-    
+       
     # Inference
     ##########################################################################
     def infer(self, signal):
@@ -200,7 +218,7 @@ class CausalMP:
         lspikes = resid.shape[0]
         spikes = np.zeros([self.nunits, lspikes])
         for tt in range(self.lfilter, lspikes+1):
-            filout, cand, contrib = sess.run((self.filX, self.candidate, self.cand_contrib),
+            filout, cand, contrib = self.sess.run((self.filX, self.candidate, self.cand_contrib),
                                              feed_dict = {Xnow : resid[tt-self.lfilter:tt]})
             sp = filout[cand]
             if np.abs(sp) > self.thresh:
@@ -218,14 +236,24 @@ class CausalMP:
         lspikes = resid.shape[0]
         spikes = np.zeros([self.nunits, lspikes])
         for tt in range(self.lfilter, lspikes+1):
-            filX = phi @ resid[tt-self.lfilter:tt]
-            cand = np.argmax(np.abs(filX))
-            sp = filX[cand]
-            if np.abs(sp) > self.thresh:
-                contrib = filX[cand]*phi[cand]
-                resid[tt-self.lfilter:tt] -= contrib
-                recon[tt-self.lfilter:tt] += contrib
-                spikes[cand, tt-1] = sp
+            keepgoing = True
+            thisiter = 0
+            while keepgoing and thisiter < self.max_iter:
+                filX = phi @ resid[tt-self.lfilter:tt]
+                cand = np.argmax(np.abs(filX))
+                sp = filX[cand]
+                if np.abs(sp) > self.thresh:
+                    if spikes[cand, tt-1] == 0:
+                        contrib = filX[cand]*phi[cand]
+                        resid[tt-self.lfilter:tt] -= contrib
+                        recon[tt-self.lfilter:tt] += contrib
+                        spikes[cand, tt-1] = sp
+                    else:
+                        keepgoing = False
+                else:
+                    keepgoing = False
+                thisiter += 1
+                
         return spikes, recon
         
     def test_inference(self, length=10000):
@@ -298,7 +326,19 @@ class CausalMP:
         phi = self.phi
         corr = phi @ phi.T
         plt.imshow(corr, cmap='RdBu', interpolation='nearest')
-        plt.colorbar()        
+        plt.colorbar()  
+        
+    def cf_bandwidth_plot(self):
+        """Each dictionary element determines a point on a plot of that element's
+        bandwidth vs its center frequency."""
+        spectra = np.square(np.abs(np.fft.rfft(self.phi, axis=1)))
+        centers = np.abs(spectra) @ np.fft.fftfreq(self.lfilter, d=1/self.sample_rate)[:spectra.shape[1]]
+        bandwidths = np.std(spectra, axis=1)
+        plt.plot(centers, bandwidth, 'b.')
+        plt.xlabel('Center frequency (Hz)')
+        plt.xscale('log')
+        plt.ylabel('Bandwidth (Hz)')
+        plt.yscale('log')
         
     # Sorting
     ##########################################################################
@@ -365,8 +405,7 @@ class CausalMP:
         
     @property
     def histories(self):
-        return (self.errorhist, self.actfrachist, self.L0acts, self.L1acts, self.L2acts)
-     
+        return (self.errorhist, self.actfrachist, self.L0acts, self.L1acts, self.L2acts)     
     @histories.setter
     def histories(self, histories):
         self.errorhist, self.actfrachist, self.L0acts, self.L1acts, self.L2acts = histories
