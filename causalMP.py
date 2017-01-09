@@ -267,7 +267,7 @@ class CausalMP:
                 filX = phi @ segment
                 cand = np.argmax(np.abs(filX))
                 sp = filX[cand]
-                segnorm = np.linalg.norm(segment[masks[cand]])
+                segnorm = np.linalg.norm(segment[self.masks[cand]])
                 if np.abs(sp) > self.thresh and np.abs(sp)/segnorm > self.normed_thresh:
                     if spikes[cand, tt-1] == 0:
                         contrib = filX[cand]*phi[cand]
