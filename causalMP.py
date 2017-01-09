@@ -224,7 +224,7 @@ class CausalMP:
         masks = self.phi > self.mask_epsilon
         starts = np.argmax(masks, axis=1) # returns *first* maximum
         for ind in range(masks.shape[0]):
-            masks[starts[ind]:] = 1
+            masks[ind,starts[ind]:] = 1
         return masks
         
     # Inference
