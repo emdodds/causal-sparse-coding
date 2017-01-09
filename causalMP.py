@@ -435,10 +435,17 @@ class CausalMP:
         
     @property
     def params(self):
-        return (self.thresh, self.learn_rate)
+        return {'thresh' : self.thresh,
+                'normed_thresh' : self.normed_thresh,
+                'learn_rate' : self.learn_rate}
     @params.setter
     def params(self, params):
-        self.thresh, self.learn_rate = params
+        for key, val in params.items():
+            try:
+                getattr(self,key)
+            except AttributeError:
+                print('Unexpected parameter passed:' + key)
+            setattr(self, key, val)
         
     @property
     def histories(self):
