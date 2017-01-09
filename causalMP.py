@@ -120,12 +120,14 @@ class CausalMP:
                  filter_time = 0.05,
                  learn_rate = 0.01,
                  thresh = 0.5,
+                 normed_thresh = 0.1,
                  max_iter = 1,
+                 mask_epsilon = None,
                  tf_inference = False,
                  paramfile= 'causalMP.pickle'):
         """
         Causal Matching Pursuit tries at each time to add the coefficient(s)
-        that most improve(s) the a linear representation of a given signal,
+        that most improve(s) a linear representation of a given signal,
         using only the portion of the signal before that time.
 
         Parameters:
@@ -133,21 +135,29 @@ class CausalMP:
         nunits : (int) number of filters used
         filter_time : (float) length of filters in seconds
         learn_rate : (float) rate used for dictionary learning
-        thresh : (float) coefficients below this number are rejected
+        thresh : (float) coefficients below this value are rejected
+        normed_thresh : (bool) coefficients are rejected if below this value
+            after division by signal segment norm
         max_iter : (int) maximum number of coefficients per time point
+        mask_epsilon : (float) small number for deciding region of filter close
+            enough to zero to ignore for normed_thresh. Default determined by
+            filter length.
         tf_inference : (bool) use tensorflow inference method if True
         paramfile : (str) filename where parameters, dict, histories are saved
         """
         
         
         self.thresh = 0.6
+        self.normed_thresh = normed_thresh
         self.tf_inference = tf_inference
         self.sample_rate = 16000
         self.nunits = 32
         self.lfilter = int(filter_time * self.sample_rate)
+        self.mask_epsilon = mask_epsilon or 0.01*np.sqrt(1/self.lfilter)
         self.max_iter = max_iter
         
         self.initialize_graph(learn_rate)
+        self.masks = self.get_masks()
         self.stims = self.load_data(data)
         
         self.errorhist = np.array([])
@@ -203,6 +213,20 @@ class CausalMP:
         else:
             return tf.random_normal([self.nunits, self.lfilter])
        
+    def get_masks(self):
+        """Returns an array where each row is a binary mask for a filter. The
+        mask should be zero outside the region where the filter has significant
+        support. Used for ignoring part of signal segments when assessing
+        whether a candidate coefficient clears the normed_thresh.
+        For now this method assumes that the correct mask has zeros to the left
+        and ones to the right of some midpoint. This is consistent with filters
+        learned in early experiments."""
+        masks = self.phi > self.mask_epsilon
+        starts = np.argmax(masks, axis=1) # returns *first* maximum
+        for ind in range(masks.shape[0]):
+            masks[starts[ind]:] = 1
+        return masks
+        
     # Inference
     ##########################################################################
     def infer(self, signal):
@@ -239,10 +263,12 @@ class CausalMP:
             keepgoing = True
             thisiter = 0
             while keepgoing and thisiter < self.max_iter:
-                filX = phi @ resid[tt-self.lfilter:tt]
+                segment = resid[tt-self.lfilter:tt]
+                filX = phi @ segment
                 cand = np.argmax(np.abs(filX))
                 sp = filX[cand]
-                if np.abs(sp) > self.thresh:
+                segnorm = np.linalg.norm(segment[masks[cand]])
+                if np.abs(sp) > self.thresh and np.abs(sp)/segnorm > self.normed_thresh:
                     if spikes[cand, tt-1] == 0:
                         contrib = filX[cand]*phi[cand]
                         resid[tt-self.lfilter:tt] -= contrib
@@ -396,7 +422,9 @@ class CausalMP:
         return self.sess.run(self.filters)
     @phi.setter
     def phi(self, phi):
+        """Also updates masks."""
         self.sess.run(self.filters.assign(phi))
+        self.masks = self.get_masks()
     
     @property
     def learn_rate(self):
