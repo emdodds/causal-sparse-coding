@@ -307,6 +307,7 @@ class CausalMP:
         feed_dict = {self.X : signal, self.final_coeffs : spikes}
         error, _ = self.sess.run((self.loss, self.learn_op), feed_dict = feed_dict)
         self.sess.run(self.normalize)
+        self.masks = self.get_masks()
         # record and return stats
         nspikes = np.count_nonzero(spikes)
         act_fraction = nspikes/lsignal
