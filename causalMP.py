@@ -373,6 +373,20 @@ class CausalMP:
         bandwidths = np.sqrt(spectra @ freqs**2 / spectra.sum(1) - centers**2)
         return centers, bandwidths
         
+    def revcorr(self, nstims=10, delay=100):
+        RFs = np.zeros((self.nunits,self.lfilter+delay))
+        spikecounts = np.zeros(self.nunits)
+        for nn in range(nstims):
+            signal = self.stims.rand_stim()
+            lsignal = signal.shape[0]
+            spikes, recon = self.infer(signal)
+            for tt in range(self.lfilter,lsignal-delay):
+                RFs += np.outer(spikes[:,tt],signal[tt-self.lfilter:tt+delay])
+                spikecounts += spikes[:,tt]
+        RFs /= spikecounts[:,None]
+        self.stims.tiled_plot(RFs)
+        return RFs
+        
     # Sorting
     ##########################################################################
     def fast_sort(self, measure="L0", plot=False, savestr=None):
