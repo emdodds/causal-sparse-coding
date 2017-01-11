@@ -127,6 +127,7 @@ class CausalMP:
                  max_iter = 1,
                  mask_epsilon = None,
                  tf_inference = False,
+                 sample_rate = 16000,
                  paramfile= 'causalMP.pickle'):
         """
         Causal Matching Pursuit tries at each time to add the coefficient(s)
@@ -135,6 +136,7 @@ class CausalMP:
 
         Parameters:
         ---------------------------------------------------------------------
+        data : (str) path to directory containing .wav files
         nunits : (int) number of filters used
         filter_time : (float) length of filters in seconds
         learn_rate : (float) rate used for dictionary learning
@@ -146,15 +148,16 @@ class CausalMP:
             enough to zero to ignore for normed_thresh. Default determined by
             filter length.
         tf_inference : (bool) use tensorflow inference method if True
+        sample_rate : (int) samples per second
         paramfile : (str) filename where parameters, dict, histories are saved
         """
         
         
-        self.thresh = 0.6
+        self.thresh = thresh
         self.normed_thresh = normed_thresh
         self.tf_inference = tf_inference
-        self.sample_rate = 16000
-        self.nunits = 32
+        self.sample_rate = sample_rate
+        self.nunits = nunits
         self.lfilter = int(filter_time * self.sample_rate)
         self.mask_epsilon = mask_epsilon or 0.01*np.sqrt(1/self.lfilter)
         self.max_iter = max_iter
@@ -206,6 +209,8 @@ class CausalMP:
         self.sess.run(self.normalize)
     
     def initial_filters(self, gammachirp=False):
+        """Return either a set of gammachirp filters or random (normal) filters,
+        not normalized."""
         if gammachirp:
             gammachirps = np.zeros([self.nunits, self.lfilter])
             freqs = np.logspace(np.log10(100), np.log10(6000), self.nunits)
@@ -392,7 +397,7 @@ class CausalMP:
         #RFs /= spikecounts[:,None]
         if whiten:
             ridgeparam = 0.01
-            RFs = np.transpose(np.linalg.lstsq(stimcov + ridgeparam*np.eye(self.lfilter+delay), RFs.T))
+            RFs = np.linalg.lstsq(stimcov + ridgeparam*np.eye(self.lfilter+delay), RFs.T)[0].T
         RFs = RFs/(np.linalg.norm(RFs,axis=1)[:,None])
         self.stims.tiled_plot(RFs)
         return RFs, spikecounts
