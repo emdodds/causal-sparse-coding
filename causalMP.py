@@ -99,6 +99,9 @@ class SignalSet:
         signal /= np.max(signal) # as in Smith & Lewicki
         return signal
         
+    def write_sound(self, filename, signal):
+        wavfile.write(filename, self.sample_rate, signal)
+        
     def tiled_plot(self, stims):
         """Tiled plots of the given signals. Zeroth index is which signal.
         Kind of slow, expect about 10s for 100 plots."""
@@ -389,10 +392,15 @@ class CausalMP:
         #RFs /= spikecounts[:,None]
         if whiten:
             ridgeparam = 0.01
-            RFs = np.linalg.lstsq(stimcov + ridgeparam*np.eye(self.lfilter+delay), RFs)
+            RFs = np.linalg.lstsq(stimcov + ridgeparam*np.eye(self.lfilter+delay), RFs.T).T
         RFs = RFs/(np.linalg.norm(RFs,axis=1)[:,None])
         self.stims.tiled_plot(RFs)
         return RFs, spikecounts
+        
+    def write_dict_sounds(self, filename):
+        phi = np.concatenate([self.phi, np.zeros((self.nunits,8000))],axis=1)
+        sequence = phi.flatten()
+        self.stims.write_sound(filename, sequence)
         
     # Sorting
     ##########################################################################
