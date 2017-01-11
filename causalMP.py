@@ -373,19 +373,26 @@ class CausalMP:
         bandwidths = np.sqrt(spectra @ freqs**2 / spectra.sum(1) - centers**2)
         return centers, bandwidths
         
-    def revcorr(self, nstims=10, delay=100):
+    def revcorr(self, nstims=10, delay=100, whiten=True):
         RFs = np.zeros((self.nunits,self.lfilter+delay))
+        stimcov = np.zeros((self.lfilter+delay,self.lfilter+delay))
         spikecounts = np.zeros(self.nunits)
         for nn in range(nstims):
             signal = self.stims.rand_stim()
             lsignal = signal.shape[0]
             spikes, recon = self.infer(signal)
             for tt in range(self.lfilter,lsignal-delay):
-                RFs += np.outer(spikes[:,tt],signal[tt-self.lfilter:tt+delay])
+                segment = signal[tt-self.lfilter:tt+delay]
+                RFs += np.outer(spikes[:,tt], segment)
+                stimcov += np.outer(segment, segment)
                 spikecounts += spikes[:,tt]
-        RFs /= spikecounts[:,None]
+        #RFs /= spikecounts[:,None]
+        if whiten:
+            ridgeparam = 0.01
+            RFs = np.linalg.lstsq(stimcov + ridgeparam*np.eye(self.lfilter+delay), RFs)
+        RFs = RFs/(np.linalg.norm(RFs,axis=1)[:,None])
         self.stims.tiled_plot(RFs)
-        return RFs
+        return RFs, spikecounts
         
     # Sorting
     ##########################################################################
