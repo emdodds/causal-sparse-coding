@@ -392,7 +392,7 @@ class CausalMP:
         #RFs /= spikecounts[:,None]
         if whiten:
             ridgeparam = 0.01
-            RFs = np.linalg.lstsq(stimcov + ridgeparam*np.eye(self.lfilter+delay), RFs.T).T
+            RFs = np.transpose(np.linalg.lstsq(stimcov + ridgeparam*np.eye(self.lfilter+delay), RFs.T))
         RFs = RFs/(np.linalg.norm(RFs,axis=1)[:,None])
         self.stims.tiled_plot(RFs)
         return RFs, spikecounts
