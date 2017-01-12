@@ -123,7 +123,7 @@ class CausalMP:
                  filter_time = 0.05,
                  learn_rate = 0.01,
                  thresh = 0.5,
-                 normed_thresh = 0.1,
+                 normed_thresh = None,
                  max_iter = 1,
                  mask_epsilon = None,
                  tf_inference = False,
@@ -154,11 +154,11 @@ class CausalMP:
         
         
         self.thresh = thresh
-        self.normed_thresh = normed_thresh
         self.tf_inference = tf_inference
         self.sample_rate = sample_rate
         self.nunits = nunits
         self.lfilter = int(filter_time * self.sample_rate)
+        self.normed_thresh = normed_thresh or 2/np.sqrt(self.lfilter)
         self.mask_epsilon = mask_epsilon or 0.01*np.sqrt(1/self.lfilter)
         self.max_iter = max_iter
         
@@ -271,6 +271,7 @@ class CausalMP:
             keepgoing = True
             thisiter = 0
             while keepgoing and thisiter < self.max_iter:
+                # TODO: should we divide by masked segment norms before taking argmax?
                 segment = resid[tt-self.lfilter:tt]
                 filX = phi @ segment
                 cand = np.argmax(np.abs(filX))
