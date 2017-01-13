@@ -14,15 +14,17 @@ from causalMP import snr, plot_spikegram
 
 class SpectroSet:
     
-    def __init__(self, data):
+    def __init__(self, data, rect_level = None):
+        if rect_level is not None:
+            self.rectified = True
         if isinstance(data, str):
-            self.load_from_folder(data)
+            self.load_from_folder(data, rect_level)
         else:
             self.data = data
             self.ndata = len(data)  
             self.nfreqs = data[0].shape[1]
             
-    def load_from_folder(self, folder='../Data/TIMIT/spectrograms'):
+    def load_from_folder(self, folder='../Data/TIMIT/spectrograms', rect_level=None):
         min_length = 26 # TODO: should not be hard-coded
         files = os.listdir(folder)
         file = None
@@ -32,6 +34,8 @@ class SpectroSet:
                 file = os.path.join(folder,ff)
                 spectro = np.load(file)
                 if spectro.shape[0] > min_length:
+                    if rect_level is not None:
+                        spectro = np.log(1 + np.exp(spectro - rect_level))
                     self.data.append(spectro)
                     self.nfreqs = spectro.shape[1]
         self.ndata = len(self.data)
@@ -40,8 +44,11 @@ class SpectroSet:
     def rand_stim(self):
         which = np.random.randint(low=0, high=self.ndata)
         signal = self.data[which]
-        signal -= signal.mean()
-        signal /= signal.std()
+        if self.rectified:
+            signal /= np.max(signal)
+        else:
+            signal -= signal.mean()
+            signal /= signal.std()
         return signal
         
     def show_stim(self, stim, cmap = 'RdBu'):
@@ -65,6 +72,13 @@ class SpectroSet:
         f.subplots_adjust(hspace=0, wspace=0)
         plt.setp([a.get_xticklabels() for a in f.axes[:-1]], visible=False)
         plt.setp([a.get_yticklabels() for a in f.axes[:-1]], visible=False)
+        
+    def rectify(self, ref_level = -7):
+        """Makes all the data positive by the transformation 
+        x --> log(1 + e^{x-ref_level})"""
+        for ii in range(self.ndata):
+            self.data[ii] = np.log(1 + np.exp(self.data[ii] - ref_level))
+        self.rectified = True
 
 class SpectroCausalMP(causalMP.CausalMP):
     
@@ -77,6 +91,7 @@ class SpectroCausalMP(causalMP.CausalMP):
                  thresh = 0.01,
                  normed_thresh = None,
                  max_iter = 1,
+                 rect_level = None,
                  paramfile = 'spectroCMP.pickle'):
          
         self.nunits = nunits            
@@ -86,7 +101,7 @@ class SpectroCausalMP(causalMP.CausalMP):
         self.lfilter = int(filter_time / time_bin)
         self.time_bin = time_bin
         
-        self.stims = SpectroSet(data)
+        self.stims = SpectroSet(data, rect_level)
         self.nfreqs = self.stims.nfreqs
         self.normed_thresh = normed_thresh or 2/np.sqrt(self.lfilter*self.nfreqs)
         
@@ -137,7 +152,10 @@ class SpectroCausalMP(causalMP.CausalMP):
         self.sess.run(self.normalize)
         
     def initial_filters(self):
-        return tf.random_normal([self.nunits, self.lfilter, self.nfreqs])
+        normal = tf.random_normal([self.nunits, self.lfilter, self.nfreqs])
+        if self.stims.rectified:
+            normal += 1 # add strong positive bias
+        return normal
                 
     def infer(self, signal):
         phi = np.reshape(self.phi, [self.nunits, -1])
@@ -177,7 +195,7 @@ class SpectroCausalMP(causalMP.CausalMP):
         self.stims.show_stim(recon)
         plt.title('Reconstruction')
         plt.subplot(3,1,3)
-        plot_spikegram(spikes, sample_rate=self.time_bin, markerSize=1)
+        plot_spikegram(spikes, sample_rate=int(1/self.time_bin), markerSize=1)
         print('Signal-noise ratio: ', snr(sig, recon), " dB")    
         
         

@@ -100,6 +100,7 @@ class SignalSet:
         return signal
         
     def write_sound(self, filename, signal):
+        signal /= np.max(signal)
         wavfile.write(filename, self.sample_rate, signal)
         
     def tiled_plot(self, stims):
